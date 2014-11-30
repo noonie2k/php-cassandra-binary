@@ -77,12 +77,13 @@ class Database {
 			case OpcodeEnum::AUTHENTICATE:
 				$nodeOptions = $this->connection->getNode()->getOptions();
 				$response = $this->connection->sendRequest(
-					RequestFactory::credentials(
+					RequestFactory::authResponse(
 						$nodeOptions['username'],
 						$nodeOptions['password']
 					)
 				);
 				$responseType = $response->getType();
+				if ($responseType === OpcodeEnum::AUTH_CHALLENGE) throw new ConnectionException($response->getData());
 		}
 		if ($responseType === OpcodeEnum::ERROR) throw new ConnectionException($response->getData());
 		if (!empty($this->keyspace)) $this->setKeyspace($this->keyspace);

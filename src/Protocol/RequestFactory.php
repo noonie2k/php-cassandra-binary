@@ -1,6 +1,7 @@
 <?php
 namespace evseevnn\Cassandra\Protocol;
 use evseevnn\Cassandra\Enum\OpcodeEnum;
+use evseevnn\Cassandra\Enum\QueryFlagsEnum;
 
 final class RequestFactory {
 
@@ -66,6 +67,36 @@ final class RequestFactory {
 	}
 
 	/**
+	 * AUTH_RESPONSE
+	 *
+	 * Answers a server authentication challenge.
+	 *
+	 * Authentication in the protocol is SASL based. The server sends authentication
+	 * challenges (a bytes token) to which the client answer with this message. Those
+	 * exchanges continue until the server accepts the authentication by sending a
+	 * AUTH_SUCCESS message after a client AUTH_RESPONSE. It is however that client that
+	 * initiate the exchange by sending an initial AUTH_RESPONSE in response to a
+	 * server AUTHENTICATE request.
+	 *
+	 * The body of this message is a single [bytes] token. The details of what this
+	 * token contains (and when it can be null/empty, if ever) depends on the actual
+	 * authenticator used.
+	 *
+	 * The response to a AUTH_RESPONSE is either a follow-up AUTH_CHALLENGE message,
+	 * an AUTH_SUCCESS message or an ERROR message.
+	 *
+	 * @param string $user
+	 * @param string $password
+	 * @return \evseevnn\Cassandra\Protocol\Request
+	 */
+	public static function authResponse($user, $password) {
+		$credentials = "\x00$user\x00$password";
+		$body = pack('N', strlen($credentials)) . $credentials;
+
+		return new Request(OpcodeEnum::AUTH_RESPONSE, $body);
+	}
+
+	/**
 	 * OPTIONS
 	 *
 	 * Asks the server to return what STARTUP options are supported. The body of an
@@ -93,7 +124,10 @@ final class RequestFactory {
 	 * @return \evseevnn\Cassandra\Protocol\Request
 	 */
 	public static function query($cql, $consistency) {
-		$body = pack('N', strlen($cql)) . $cql . pack('n', $consistency);
+		$body = pack('N', strlen($cql)) . $cql
+			. pack('n', $consistency)
+			. pack('C', QueryFlagsEnum::NONE);
+
 		return new Request(OpcodeEnum::QUERY, $body);
 	}
 
@@ -137,6 +171,8 @@ final class RequestFactory {
 	 */
 	public static function execute(array $prepareData, array $values, $consistency) {
 		$body = pack('n', strlen($prepareData['id'])) . $prepareData['id'];
+		$body .= pack('n', $consistency);
+		$body .= pack('C', QueryFlagsEnum::VALUES);
 		$body .= pack('n', count($values));
 
 		// column names in lower case in metadata
